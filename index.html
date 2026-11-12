@@ -1,0 +1,800 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Zene</title>
+<meta name="theme-color" content="#EEF3FF" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#070C24" media="(prefers-color-scheme: dark)">
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpolygon points='20,12 44,12 38,26 26,26' fill='%23b9ccff'/%3E%3Cpolygon points='6,26 20,12 26,26' fill='%236f94ff'/%3E%3Cpolygon points='58,26 44,12 38,26' fill='%238aa9ff'/%3E%3Cpolygon points='6,26 26,26 32,56' fill='%233358e6'/%3E%3Cpolygon points='26,26 38,26 32,56' fill='%232346c0'/%3E%3Cpolygon points='38,26 58,26 32,56' fill='%233b63f0'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Unbounded:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #EEF3FF;
+  --paper: #F8FAFF;
+  --ink: #0E1B52;
+  --muted: #56628F;
+  --line: #CAD5F4;
+  --blue: #2B59FF;
+  --blue-ink: #FFFFFF;
+  --spark: #D42572;
+  --ok: #138A5E;
+  --warn: #B25A00;
+  --bad: #C0262D;
+  --wash: #E3EAFF;
+  --font-body: "Instrument Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Unbounded", "Instrument Sans", system-ui, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #070C24;
+    --paper: #0C1333;
+    --ink: #E6ECFF;
+    --muted: #93A0D0;
+    --line: #232F68;
+    --blue: #7094FF;
+    --blue-ink: #06103A;
+    --spark: #FF74AE;
+    --ok: #4CD6A0;
+    --warn: #F0B05A;
+    --bad: #FF7B80;
+    --wash: #111A45;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 400 16px/1.5 var(--font-body);
+  -webkit-text-size-adjust: 100%;
+  overflow: hidden;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+a { color: var(--blue); }
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 4px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* shell */
+.app {
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas: "top" "main" "nav";
+}
+.top {
+  grid-area: top;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: calc(10px + env(safe-area-inset-top)) 16px 10px;
+  border-bottom: 1px solid var(--line);
+}
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.gem { width: 40px; height: 40px; flex: none; }
+.gem polygon { transition: fill .8s ease; stroke: var(--bg); stroke-width: .8; stroke-linejoin: round; }
+.gem.glint { animation: glint .9s ease-out; }
+@keyframes glint { 0% { transform: scale(1); filter: brightness(1); } 35% { transform: scale(1.14) rotate(-3deg); filter: brightness(1.45); } 100% { transform: scale(1); filter: brightness(1); } }
+.word { font: 700 20px/1 var(--font-display); letter-spacing: -0.01em; }
+.moodline { font-size: 13px; color: var(--muted); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.links { display: flex; gap: 14px; font-size: 13px; color: var(--muted); }
+.link { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.dot { width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--muted); flex: none; }
+.dot.on { background: var(--ok); border-color: var(--ok); }
+.dot.warn { background: var(--warn); border-color: var(--warn); }
+
+.nav {
+  grid-area: nav;
+  display: grid; grid-template-columns: repeat(5, 1fr);
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.nav button {
+  background: none; border: 0; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  min-height: 58px; font-size: 12px; color: var(--muted);
+  border-top: 3px solid transparent;
+}
+.nav button svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.nav button[aria-current="page"] { color: var(--blue); border-top-color: var(--blue); font-weight: 600; }
+
+main { grid-area: main; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.view { padding: 16px; max-width: 760px; margin: 0 auto; }
+.view.fill { height: 100%; padding-bottom: 0; display: flex; flex-direction: column; }
+
+@media (min-width: 900px) {
+  .app { grid-template-columns: 210px minmax(0, 1fr); grid-template-areas: "top top" "nav main"; }
+  .nav { grid-template-columns: 1fr; align-content: start; border-top: 0; border-right: 1px solid var(--line); padding: 12px 0; }
+  .nav button { flex-direction: row; justify-content: flex-start; gap: 12px; min-height: 48px; padding: 0 20px; font-size: 15px; border-top: 0; border-left: 3px solid transparent; }
+  .nav button[aria-current="page"] { border-left-color: var(--blue); }
+  .view { padding: 24px; }
+}
+
+/* type */
+h2 { font: 600 17px/1.25 var(--font-display); letter-spacing: -0.01em; margin: 28px 0 10px; }
+h2:first-child { margin-top: 4px; }
+h3 { font: 600 15px/1.3 var(--font-body); margin: 0 0 4px; }
+p { margin: 0 0 12px; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* controls */
+.btn {
+  appearance: none; cursor: pointer; min-height: 44px; padding: 0 18px;
+  background: transparent; color: var(--ink); border: 1.5px solid var(--line); border-radius: 999px;
+  font-weight: 500; transition: background-color .12s, border-color .12s;
+}
+.btn:hover { border-color: var(--blue); }
+.btn.primary { background: var(--blue); color: var(--blue-ink); border-color: var(--blue); font-weight: 600; }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.danger { color: var(--bad); border-color: var(--bad); }
+.btn.small { min-height: 36px; padding: 0 14px; font-size: 14px; }
+.btn:disabled { opacity: .5; cursor: default; }
+input[type="text"], input[type="search"], input[type="password"], input[type="number"], select, textarea {
+  width: 100%; min-height: 44px; padding: 10px 12px;
+  background: var(--paper); border: 1.5px solid var(--line); border-radius: 12px;
+}
+textarea { resize: vertical; line-height: 1.45; }
+input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--blue); outline-offset: 0; border-color: var(--blue); }
+.field { display: block; margin: 0 0 14px; }
+.field > span { display: block; font-size: 14px; font-weight: 600; margin-bottom: 5px; }
+.field > small { display: block; color: var(--muted); font-size: 13px; margin-top: 4px; }
+.check { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 12px; min-height: 28px; }
+.check input { width: 22px; height: 22px; margin: 1px 0 0; accent-color: var(--blue); flex: none; }
+.check small { display: block; color: var(--muted); font-size: 13px; }
+input[type="range"] { width: 100%; accent-color: var(--blue); min-height: 32px; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 6px; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 420px) { .row2 { grid-template-columns: 1fr; } }
+
+.seg { display: flex; gap: 4px; padding: 4px; background: var(--wash); border-radius: 999px; margin: 0 0 16px; overflow-x: auto; }
+.seg button { flex: 1 1 auto; min-height: 38px; padding: 0 9px; border: 0; background: none; border-radius: 999px; cursor: pointer; color: var(--muted); font-weight: 500; white-space: nowrap; }
+.seg button[aria-pressed="true"] { background: var(--paper); color: var(--ink); font-weight: 600; box-shadow: 0 0 0 1.5px var(--blue) inset; }
+
+.banner { border-left: 4px solid var(--blue); background: var(--wash); padding: 12px 14px; margin: 0 0 16px; border-radius: 0 10px 10px 0; }
+.banner.warn { border-left-color: var(--warn); }
+.banner.bad { border-left-color: var(--bad); }
+.banner p:last-child { margin-bottom: 0; }
+
+.list { list-style: none; margin: 0; padding: 0; }
+.list > li { padding: 12px 0; border-top: 1px solid var(--line); }
+.list > li:last-child { border-bottom: 1px solid var(--line); }
+.item-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.item-head .muted { white-space: nowrap; }
+.item-actions { display: flex; gap: 8px; margin-top: 8px; }
+.pill { display: inline-block; font-size: 12px; padding: 1px 9px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); margin-left: 6px; vertical-align: 1px; }
+.pill.ok { color: var(--ok); border-color: var(--ok); }
+.pill.warn { color: var(--warn); border-color: var(--warn); }
+.pill.bad { color: var(--bad); border-color: var(--bad); }
+code, .code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; background: var(--wash); border-radius: 6px; padding: 2px 6px; word-break: break-all; }
+.keybox { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.keybox .code { flex: 1 1 200px; padding: 10px 12px; border-radius: 12px; }
+.meter { height: 6px; background: var(--wash); border-radius: 3px; overflow: hidden; margin: 6px 0 14px; }
+.meter > i { display: block; height: 100%; background: var(--blue); }
+
+/* talk: a stream-chat log, not bubbles */
+.talk { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.log { list-style: none; margin: 0; padding: 0 0 12px; flex: 1; overflow-y: auto; overscroll-behavior: contain; }
+.ln { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; padding: 7px 0 7px 12px; border-left: 3px solid transparent; }
+.ln .who { font-weight: 600; }
+.ln .tx { overflow-wrap: anywhere; white-space: pre-wrap; }
+.ln time { font-size: 12px; color: var(--muted); grid-column: 2; grid-row: 1; align-self: start; padding-top: 2px; }
+.ln .msg { grid-column: 1; grid-row: 1; }
+.ln.z { border-left-color: var(--spark); }
+.ln.z .who { color: var(--spark); }
+.ln.u .who { color: var(--blue); }
+.ln.err .tx { color: var(--bad); }
+.dots::after { content: "..."; display: inline-block; width: 1.2em; animation: dots 1.2s steps(4, end) infinite; overflow: hidden; vertical-align: bottom; }
+@keyframes dots { from { width: 0; } to { width: 1.2em; } }
+.empty { color: var(--muted); padding: 24px 0; }
+.composer { display: flex; gap: 8px; align-items: flex-end; padding: 10px 0 14px; border-top: 1px solid var(--line); background: var(--bg); }
+.composer textarea { min-height: 46px; max-height: 140px; border-radius: 23px; padding: 11px 16px; resize: none; }
+.composer .btn { height: 46px; }
+
+/* memory rows */
+.mem .meta { font-size: 12px; color: var(--muted); }
+.mem .z .nm { color: var(--spark); }
+.mem .nm { font-weight: 600; }
+.mem .t { overflow-wrap: anywhere; }
+
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(76px + env(safe-area-inset-bottom)); z-index: 5; max-width: min(92vw, 520px); padding: 10px 16px; border-radius: 14px; background: var(--ink); color: var(--bg); font-size: 14px; box-shadow: 0 6px 24px rgba(5, 12, 50, .28); }
+.toast.bad { background: var(--bad); color: #fff; }
+@media (min-width: 900px) { .toast { bottom: 24px; } }
+
+.login { min-height: 100dvh; display: grid; place-items: center; padding: 24px 16px; }
+.login > div { width: min(100%, 360px); }
+.login .brand { margin-bottom: 22px; }
+.login .gem { width: 56px; height: 56px; }
+.login .word { font-size: 30px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .gem polygon { transition: none; }
+  .gem.glint { animation: none; }
+  .dots::after { animation: none; width: 1.2em; }
+  .btn { transition: none; }
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+(() => {
+'use strict';
+
+/* ---------- tiny helpers ---------- */
+const h = (tag, attrs, ...kids) => {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v == null || v === false) continue;
+    if (k === 'class') el.className = v;
+    else if (k === 'on') for (const [ev, fn] of Object.entries(v)) el.addEventListener(ev, fn);
+    else if (v === true) el.setAttribute(k, '');
+    else el.setAttribute(k, v);
+  }
+  for (const kid of kids.flat(Infinity)) {
+    if (kid == null || kid === false) continue;
+    el.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+  }
+  return el;
+};
+const svgIcon = (d) => {
+  const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  s.setAttribute('viewBox', '0 0 24 24');
+  s.setAttribute('aria-hidden', 'true');
+  for (const part of d) {
+    const p = document.createElementNS('http://www.w3.org/2000/svg', part.c ? 'circle' : 'path');
+    for (const [k, v] of Object.entries(part)) p.setAttribute(k, v);
+    s.append(p);
+  }
+  return s;
+};
+const put = (el, ...kids) => el.append(...kids.flat(Infinity).filter((k) => k != null && k !== false));
+const $root = document.getElementById('root');
+const S = { me: null, state: null };
+let current = null;
+let toastTimer = null;
+
+function toast(msg, bad) {
+  let t = document.getElementById('toast');
+  if (!t) { t = h('div', { id: 'toast', class: 'toast', role: 'status' }); document.body.append(t); }
+  t.textContent = msg;
+  t.className = 'toast' + (bad ? ' bad' : '');
+  t.style.display = 'block';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.style.display = 'none'; }, bad ? 6000 : 3000);
+}
+
+async function api(method, path, body) {
+  const init = { method, credentials: 'same-origin', headers: {} };
+  if (method !== 'GET') { init.headers['Content-Type'] = 'application/json'; init.body = JSON.stringify(body === undefined ? {} : body); }
+  const res = await fetch(path, init);
+  let data = null;
+  try { data = await res.json(); } catch (e) { /* not json */ }
+  if (res.status === 401 && path.startsWith('/api/') && path !== '/api/me') { boot(); throw new Error('You were signed out.'); }
+  if (!res.ok) throw new Error((data && data.error) || 'Request failed (' + res.status + ').');
+  return data;
+}
+const run = async (fn, okMsg) => {
+  try { const r = await fn(); if (okMsg) toast(okMsg); return r; }
+  catch (e) { toast(e.message, true); return undefined; }
+};
+
+const pad = (n) => String(n).padStart(2, '0');
+function fmtTime(ts) {
+  const d = new Date(ts), n = new Date();
+  const hm = pad(d.getHours()) + ':' + pad(d.getMinutes());
+  if (d.toDateString() === n.toDateString()) return hm;
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' + hm;
+}
+function ago(ts) {
+  if (!ts) return 'never';
+  const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
+  if (s < 60) return 'just now';
+  if (s < 3600) return Math.round(s / 60) + ' min ago';
+  if (s < 86400) return Math.round(s / 3600) + ' h ago';
+  return Math.round(s / 86400) + ' d ago';
+}
+const SURFACE = { discord: 'Discord', roblox: 'Roblox', web: 'Website' };
+
+async function copy(text, what) {
+  try { await navigator.clipboard.writeText(text); toast('Copied ' + what + '.'); }
+  catch (e) {
+    const ta = h('textarea', { style: 'position:fixed;opacity:0' }, text);
+    document.body.append(ta); ta.select();
+    try { document.execCommand('copy'); toast('Copied ' + what + '.'); } catch (e2) { toast('Could not copy. Select it by hand.', true); }
+    ta.remove();
+  }
+}
+function twoStep(label, sure, cls, fn) {
+  const b = h('button', { class: cls, type: 'button' }, label);
+  let t = null;
+  b.addEventListener('click', () => {
+    if (b.dataset.armed) { clearTimeout(t); delete b.dataset.armed; b.textContent = label; fn(); return; }
+    b.dataset.armed = '1'; b.textContent = sure;
+    t = setTimeout(() => { delete b.dataset.armed; b.textContent = label; }, 3500);
+  });
+  return b;
+}
+const field = (label, control, hint) => h('label', { class: 'field' }, h('span', {}, label), control, hint ? h('small', {}, hint) : null);
+const seg = (opts, value, onPick) => {
+  const wrap = h('div', { class: 'seg', role: 'group' });
+  const draw = (v) => { wrap.replaceChildren(...opts.map(([id, label]) => h('button', { type: 'button', 'aria-pressed': String(id === v), on: { click: () => { draw(id); onPick(id); } } }, label))); };
+  draw(value);
+  return wrap;
+};
+
+/* ---------- the gem (mood) ---------- */
+const MOOD_HUE = { playful: [222, 82], happy: [196, 85], excited: [330, 85], smug: [272, 65], curious: [168, 70], calm: [212, 45], sleepy: [232, 22], annoyed: [16, 85], sad: [240, 50], chaotic: [300, 90] };
+const FACETS = [[84, 0], [66, 0], [74, 0], [50, 0], [38, 0], [56, 0]];
+const GEM_POINTS = ['20,12 44,12 38,26 26,26', '6,26 20,12 26,26', '58,26 44,12 38,26', '6,26 26,26 32,56', '26,26 38,26 32,56', '38,26 58,26 32,56'];
+function makeGem() {
+  const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  s.setAttribute('viewBox', '0 0 64 64'); s.setAttribute('class', 'gem'); s.setAttribute('aria-hidden', 'true');
+  GEM_POINTS.forEach((pts) => { const p = document.createElementNS('http://www.w3.org/2000/svg', 'polygon'); p.setAttribute('points', pts); s.append(p); });
+  return s;
+}
+function paintGem(svg, mood, animate) {
+  const [hue, sat] = MOOD_HUE[mood] || MOOD_HUE.playful;
+  const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+  svg.querySelectorAll('polygon').forEach((p, i) => {
+    const l = FACETS[i][0] + (dark ? -6 : 0);
+    const hh = mood === 'chaotic' ? hue + i * 38 : hue + (i % 2 ? 4 : -4);
+    p.style.fill = 'hsl(' + hh + ' ' + sat + '% ' + l + '%)';
+  });
+  if (animate && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    svg.classList.remove('glint'); void svg.getBoundingClientRect(); svg.classList.add('glint');
+  }
+}
+let lastMood = null;
+function applyMood(name) {
+  document.querySelectorAll('.gem').forEach((g) => paintGem(g, name, lastMood !== null && lastMood !== name));
+  const el = document.getElementById('moodline');
+  if (el) el.textContent = 'feeling ' + name;
+  lastMood = name;
+}
+
+/* ---------- shell ---------- */
+const TABS = [
+  { id: 'talk', label: 'Talk', icon: [{ d: 'M4 5h16v11H9l-5 4V5z' }], view: viewTalk },
+  { id: 'memory', label: 'Memory', icon: [{ d: 'M4 7l8-3 8 3-8 3-8-3z' }, { d: 'M4 12l8 3 8-3' }, { d: 'M4 17l8 3 8-3' }], view: viewMemory },
+  { id: 'know', label: 'Know', icon: [{ d: 'M5 4h10a3 3 0 013 3v13H8a3 3 0 01-3-3V4z' }, { d: 'M8 17h10' }], view: viewKnow },
+  { id: 'roblox', label: 'Roblox', icon: [{ d: 'M7 9h10a4 4 0 014 4v2a2 2 0 01-3.5 1.3L15 14H9l-2.5 2.3A2 2 0 013 15v-2a4 4 0 014-4z' }, { d: 'M8 11v3M6.5 12.5h3' }, { d: 'M16 12h.01M18 13.5h.01' }], view: viewRoblox },
+  { id: 'brain', label: 'Brain', icon: [{ d: 'M4 7h9M17 7h3M4 17h3M11 17h9' }, { c: 1, cx: 15, cy: 7, r: 2 }, { c: 1, cx: 9, cy: 17, r: 2 }], view: viewBrain },
+];
+
+function linkDot(label, state, text) {
+  return h('span', { class: 'link', title: text }, h('span', { class: 'dot ' + state }), h('span', {}, label), h('span', { class: 'sr' }, text));
+}
+function paintTop() {
+  const st = S.state; if (!st) return;
+  const links = document.getElementById('links');
+  if (links) {
+    const d = st.discord, r = st.roblox;
+    links.replaceChildren(
+      linkDot('Discord', d.online ? 'on' : (d.enabled ? 'warn' : ''), d.online ? 'Discord is connected' : d.enabled ? 'Discord is connecting or offline' : 'Discord is not set up'),
+      linkDot('Roblox', r.online ? 'on' : '', r.online ? 'Roblox script is connected' : 'Roblox script is offline')
+    );
+  }
+  const w = document.getElementById('word'); if (w) w.textContent = st.config.name;
+  applyMood(st.mood.name);
+}
+async function refresh() { S.state = await api('GET', '/api/state'); paintTop(); return S.state; }
+
+function shell() {
+  const nav = h('nav', { class: 'nav', 'aria-label': 'Sections' }, TABS.map((t) =>
+    h('button', { type: 'button', 'data-tab': t.id, on: { click: () => { location.hash = '#' + t.id; } } }, svgIcon(t.icon.map((p) => p.c ? { c: 1, cx: p.cx, cy: p.cy, r: p.r } : { d: p.d })), h('span', {}, t.label))));
+  const gem = makeGem();
+  $root.replaceChildren(h('div', { class: 'app' },
+    h('header', { class: 'top' },
+      h('div', { class: 'brand' }, gem, h('div', { style: 'min-width:0' }, h('div', { class: 'word', id: 'word' }, 'Zene'), h('div', { class: 'moodline', id: 'moodline' }, ''))),
+      h('div', { class: 'links', id: 'links' })),
+    h('main', { id: 'main' }),
+    nav));
+  paintGem(gem, 'playful', false);
+}
+
+function route() {
+  if (!S.me) return;
+  const id = (location.hash || '#talk').slice(1).split('/')[0];
+  const tab = TABS.find((t) => t.id === id) || TABS[0];
+  document.querySelectorAll('.nav button').forEach((b) => { if (b.dataset.tab === tab.id) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
+  if (current && current.destroy) current.destroy();
+  const main = document.getElementById('main');
+  const view = h('div', { class: 'view' + (tab.id === 'talk' ? ' fill' : '') });
+  main.replaceChildren(view);
+  main.scrollTop = 0;
+  current = tab.view(view) || null;
+}
+const go = (id, sub) => { if (sub) sessionStorageSet('brainSub', sub); location.hash = '#' + id; };
+function sessionStorageSet(k, v) { try { sessionStorage.setItem(k, v); } catch (e) { /* ignore */ } }
+function sessionStorageGet(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } }
+
+/* ---------- login ---------- */
+function showLogin(methods) {
+  const gem = makeGem(); paintGem(gem, 'playful', false);
+  const pw = h('input', { type: 'password', autocomplete: 'current-password', 'aria-label': 'Password', placeholder: 'Password' });
+  const err = h('p', { class: 'small', style: 'color:var(--bad);min-height:1.4em', role: 'alert' }, '');
+  const form = h('form', { on: { submit: async (e) => {
+    e.preventDefault(); err.textContent = '';
+    try { await api('POST', '/auth/login', { password: pw.value }); boot(); } catch (x) { err.textContent = x.message; pw.select(); }
+  } } }, pw, err, h('button', { class: 'btn primary', type: 'submit', style: 'width:100%' }, 'Sign in'));
+  $root.replaceChildren(h('div', { class: 'login' }, h('div', {},
+    h('div', { class: 'brand' }, gem, h('div', { class: 'word' }, 'Zene')),
+    methods.password ? form : null,
+    methods.discord ? h('a', { class: 'btn' + (methods.password ? '' : ' primary'), href: '/auth/discord', style: 'display:flex;align-items:center;justify-content:center;text-decoration:none;margin-top:10px' }, 'Sign in with Discord') : null,
+    !methods.password && !methods.discord ? h('div', { class: 'banner warn' }, h('p', {}, 'No login is set up yet. Add an ADMIN_PASSWORD in your Render environment variables, then reload.')) : null)));
+  if (methods.password) pw.focus();
+}
+
+/* ---------- Talk ---------- */
+function chatLine(e, extra) {
+  const isZ = e.r === 'z';
+  const name = isZ ? (S.state ? S.state.config.name : 'Zene') : e.n;
+  const li = h('li', { class: 'ln ' + (isZ ? 'z' : 'u') + (extra ? ' ' + extra : '') },
+    h('div', { class: 'msg' }, h('span', { class: 'who' }, name + ' '), h('span', { class: 'tx' }, e.t)),
+    h('time', { datetime: new Date(e.ts).toISOString() }, fmtTime(e.ts)));
+  return li;
+}
+function viewTalk(root) {
+  const log = h('ol', { class: 'log', 'aria-label': 'Conversation' });
+  const input = h('textarea', { rows: 1, maxlength: 1200, 'aria-label': 'Message', placeholder: 'Say something to ' + S.state.config.name });
+  const send = h('button', { class: 'btn primary', type: 'submit' }, 'Send');
+  let busy = false;
+  const toBottom = () => { log.scrollTop = log.scrollHeight; };
+  const grow = () => { input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 140) + 'px'; };
+  input.addEventListener('input', grow);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey && matchMedia('(pointer: fine)').matches) { e.preventDefault(); form.requestSubmit(); }
+  });
+  const form = h('form', { class: 'composer', on: { submit: async (e) => {
+    e.preventDefault();
+    const text = input.value.trim();
+    if (!text || busy) return;
+    busy = true; send.disabled = true; input.value = ''; grow();
+    empty.remove();
+    log.append(chatLine({ r: 'u', n: S.state.config.ownerName, t: text, ts: Date.now() }));
+    const pending = h('li', { class: 'ln z' }, h('div', { class: 'msg' }, h('span', { class: 'who' }, S.state.config.name + ' '), h('span', { class: 'tx dots', 'aria-label': 'thinking' }, 'thinking')), h('time', {}, ''));
+    log.append(pending); toBottom();
+    try {
+      const r = await api('POST', '/api/chat', { message: text });
+      pending.replaceWith(chatLine({ r: 'z', t: r.reply, ts: Date.now() }));
+      if (r.mood) { S.state.mood = { name: r.mood, ts: Date.now() }; applyMood(r.mood); }
+    } catch (x) {
+      pending.replaceWith(h('li', { class: 'ln z err' }, h('div', { class: 'msg' }, h('span', { class: 'tx' }, x.message)), h('time', {}, '')));
+    }
+    busy = false; send.disabled = false; toBottom();
+    if (matchMedia('(pointer: fine)').matches) input.focus();
+  } } }, input, send);
+  const empty = h('li', { class: 'empty' }, 'Say something. ' + S.state.config.name + ' remembers it everywhere: Discord, Roblox and here.');
+  const noKey = S.state.ai.keys.length === 0
+    ? h('div', { class: 'banner warn' }, h('p', {}, S.state.config.name + ' has no AI key yet, so she cannot think. A free Groq key takes a minute.'), h('button', { class: 'btn small', type: 'button', on: { click: () => go('brain', 'models') } }, 'Add a key'))
+    : null;
+  put(root, noKey, h('div', { class: 'talk' }, log, form));
+  run(async () => {
+    const { items } = await api('GET', '/api/chat/history');
+    if (items.length) items.forEach((e) => log.append(chatLine(e))); else log.append(empty);
+    toBottom();
+  });
+}
+
+/* ---------- Memory ---------- */
+function viewMemory(root) {
+  let q = '', surface = '', offset = 0, total = 0, timer = null;
+  const st = S.state.counts;
+  const list = h('ul', { class: 'list mem' });
+  const more = h('button', { class: 'btn', type: 'button', style: 'margin-top:12px', on: { click: () => load(false) } }, 'Show more');
+  const count = h('p', { class: 'small muted num' }, '');
+  const search = h('input', { type: 'search', placeholder: 'Search what she remembers', 'aria-label': 'Search memories', on: { input: () => { clearTimeout(timer); timer = setTimeout(() => { q = search.value.trim(); load(true); }, 300); } } });
+  const row = (e) => {
+    const li = h('li', { class: e.r === 'z' ? 'z' : 'u' },
+      h('div', { class: 'item-head' }, h('div', { class: 'meta' }, h('span', { class: 'nm' }, e.r === 'z' ? S.state.config.name : e.n), ' said on ' + (SURFACE[e.s] || e.s)), h('span', { class: 'meta num' }, fmtTime(e.ts))),
+      h('div', { class: 't' }, e.t),
+      h('div', { class: 'item-actions' }, twoStep('Forget', 'Sure?', 'btn small', () => run(async () => { await api('DELETE', '/api/memory/' + e.id); li.remove(); total--; }, 'Forgotten.'))));
+    return li;
+  };
+  async function load(reset) {
+    if (reset) { offset = 0; list.replaceChildren(); }
+    const r = await run(() => api('GET', '/api/memory?limit=30&offset=' + offset + '&surface=' + encodeURIComponent(surface) + '&q=' + encodeURIComponent(q)));
+    if (!r) return;
+    total = r.total; offset += r.items.length;
+    r.items.forEach((e) => list.append(row(e)));
+    count.textContent = total ? 'Showing ' + offset + ' of ' + total : (q || surface ? 'Nothing matches.' : 'No memories yet. Talk to her and they will show up here.');
+    more.style.display = offset < total ? '' : 'none';
+  }
+  const people = h('ul', { class: 'list' });
+  put(root, 
+    h('p', { class: 'num' }, st.memory + ' of ' + st.memoryCap + ' memories'),
+    h('div', { class: 'meter', role: 'img', 'aria-label': Math.round(100 * st.memory / st.memoryCap) + ' percent full' }, h('i', { style: 'width:' + Math.min(100, 100 * st.memory / st.memoryCap) + '%' })),
+    search,
+    h('div', { style: 'height:12px' }),
+    seg([['', 'All'], ['discord', 'Discord'], ['roblox', 'Roblox'], ['web', 'Website']], '', (v) => { surface = v; load(true); }),
+    count, list, more,
+    h('h2', {}, 'People she knows'),
+    h('p', { class: 'small muted' }, 'Notes you write here are part of what she knows about them.'),
+    people);
+  load(true);
+  run(async () => {
+    const { items } = await api('GET', '/api/people');
+    if (!items.length) { people.append(h('li', { class: 'muted' }, 'Nobody yet.')); return; }
+    items.forEach((p) => {
+      const notes = h('input', { type: 'text', maxlength: 300, value: p.notes || '', placeholder: 'Notes about ' + p.name, 'aria-label': 'Notes about ' + p.name });
+      notes.addEventListener('change', () => run(() => api('PUT', '/api/people', { key: p.key, notes: notes.value }), 'Saved.'));
+      people.append(h('li', {}, h('div', { class: 'item-head' }, h('h3', {}, p.name, h('span', { class: 'pill' }, SURFACE[p.surface] || p.surface)), h('span', { class: 'small muted num' }, p.count + ' messages, last ' + ago(p.last))), notes));
+    });
+  });
+}
+
+/* ---------- Knowledge ---------- */
+function viewKnow(root) {
+  const list = h('ul', { class: 'list' });
+  const title = h('input', { type: 'text', maxlength: 80, placeholder: 'Title' });
+  const text = h('textarea', { rows: 3, maxlength: 2000, placeholder: 'What should she know?' });
+  const pin = h('input', { type: 'checkbox' });
+  const draw = (items) => {
+    list.replaceChildren();
+    if (!items.length) { list.append(h('li', { class: 'muted' }, 'She has not been taught anything yet.')); return; }
+    items.forEach((k) => list.append(knowRow(k)));
+  };
+  const reload = () => run(async () => draw((await api('GET', '/api/knowledge')).items));
+  function knowRow(k) {
+    const li = h('li', {});
+    const view = () => {
+      li.replaceChildren(
+        h('div', { class: 'item-head' }, h('h3', {}, k.title, k.pinned ? h('span', { class: 'pill ok' }, 'always on') : null), h('span', { class: 'small muted' }, k.source)),
+        h('p', { style: 'white-space:pre-wrap;overflow-wrap:anywhere;margin:0' }, k.text),
+        h('div', { class: 'item-actions' },
+          h('button', { class: 'btn small', type: 'button', on: { click: edit } }, 'Edit'),
+          twoStep('Delete', 'Sure?', 'btn small', () => run(async () => { await api('DELETE', '/api/knowledge/' + k.id); reload(); }, 'Deleted.'))));
+    };
+    const edit = () => {
+      const t = h('input', { type: 'text', maxlength: 80, value: k.title, 'aria-label': 'Title' });
+      const x = h('textarea', { rows: 4, maxlength: 2000, 'aria-label': 'Text' }, k.text);
+      const p = h('input', { type: 'checkbox' }); p.checked = !!k.pinned;
+      li.replaceChildren(t, h('div', { style: 'height:8px' }), x, h('label', { class: 'check', style: 'margin-top:8px' }, p, h('span', {}, 'Always on her mind')),
+        h('div', { class: 'item-actions' },
+          h('button', { class: 'btn small primary', type: 'button', on: { click: () => run(async () => { const r = await api('PUT', '/api/knowledge/' + k.id, { title: t.value, text: x.value, pinned: p.checked }); k = r.item; view(); }, 'Saved.') } }, 'Save'),
+          h('button', { class: 'btn small', type: 'button', on: { click: view } }, 'Cancel')));
+    };
+    view();
+    return li;
+  }
+  put(root, 
+    h('form', { on: { submit: (e) => { e.preventDefault(); run(async () => { await api('POST', '/api/knowledge', { title: title.value, text: text.value, pinned: pin.checked }); title.value = ''; text.value = ''; pin.checked = false; await reload(); }, 'She learned it.'); } } },
+      field('Teach her something', h('div', {}, title, h('div', { style: 'height:8px' }), text), 'Facts, lore, running jokes, rules for the Roblox games she plays.'),
+      h('label', { class: 'check' }, pin, h('span', {}, 'Always on her mind', h('small', {}, 'Otherwise she only recalls it when it comes up.'))),
+      h('button', { class: 'btn primary', type: 'submit' }, 'Teach her')),
+    h('h2', {}, 'What she knows'), list);
+  reload();
+}
+
+/* ---------- Roblox ---------- */
+function viewRoblox(root) {
+  const stBox = h('div', {});
+  const logBox = h('ul', { class: 'list' });
+  let shown = false;
+  const gw = S.state.gateway;
+  const keyCode = h('span', { class: 'code' }, '');
+  const drawKey = () => { keyCode.textContent = shown ? gw.key : gw.key.slice(0, 3) + '•'.repeat(18); };
+  drawKey();
+  const sayIn = h('input', { type: 'text', maxlength: 400, placeholder: 'What should she say in chat?', 'aria-label': 'Say in Roblox chat' });
+  const orderIn = h('input', { type: 'text', maxlength: 400, placeholder: 'For example: go inside the house', 'aria-label': 'Order' });
+  function drawStatus() {
+    const r = S.state.roblox;
+    stBox.replaceChildren(r.online
+      ? h('div', { class: 'banner' }, h('p', {}, h('span', { class: 'dot on', style: 'display:inline-block;margin-right:8px' }), 'Connected' + (r.user ? ' as ' + r.user : '')), h('p', { class: 'small muted' }, (r.game ? 'In ' + r.game + (r.players ? ' with ' + r.players + ' players' : '') : 'No game reported yet') + (r.doing ? '. ' + r.doing + '.' : '')))
+      : h('div', { class: 'banner warn' }, h('p', {}, 'The Roblox script is not connected.'), h('p', { class: 'small muted' }, r.lastSeen ? 'Last seen ' + ago(r.lastSeen) + '.' : 'Run zene-roblox.lua in your executor to connect.')));
+  }
+  drawStatus();
+  async function drawLog() {
+    const r = await api('GET', '/api/roblox/log');
+    logBox.replaceChildren();
+    const rows = [];
+    r.outbox.forEach((o) => rows.push({ ts: o.ts, el: h('li', {}, h('div', { class: 'item-head' }, h('span', {}, h('span', { class: 'pill' }, o.type === 'order' ? 'order sent' : 'said by you'), ' ' + o.text), h('span', { class: 'small muted num' }, fmtTime(o.ts)))) }));
+    r.items.slice(0, 12).forEach((e) => rows.push({ ts: e.ts, el: h('li', {}, h('div', { class: 'item-head' }, h('span', {}, h('b', { style: e.r === 'z' ? 'color:var(--spark)' : '' }, (e.r === 'z' ? S.state.config.name : e.n) + ' '), e.t), h('span', { class: 'small muted num' }, fmtTime(e.ts)))) }));
+    rows.sort((a, b) => b.ts - a.ts);
+    if (!rows.length) logBox.append(h('li', { class: 'muted' }, 'Nothing yet.'));
+    rows.slice(0, 16).forEach((x) => logBox.append(x.el));
+  }
+  const sendTo = (kind, input) => run(async () => {
+    if (!input.value.trim()) throw new Error(kind === 'say' ? 'Write something for her to say.' : 'Write the order first.');
+    await api('POST', '/api/roblox/' + kind, { text: input.value }); input.value = ''; drawLog();
+  }, kind === 'say' ? 'Queued. She will say it in Roblox.' : 'Order queued.');
+  put(root, 
+    stBox,
+    h('h2', {}, 'Connect the script'),
+    h('ol', { class: 'small', style: 'padding-left:20px;margin:0 0 14px' },
+      h('li', {}, 'Open zene-roblox.lua and paste these two values at the top.'),
+      h('li', {}, 'Run the script in your executor. This page turns green when it connects.')),
+    field('Gateway URL', h('div', { class: 'keybox' }, h('span', { class: 'code' }, gw.url), h('button', { class: 'btn small', type: 'button', on: { click: () => copy(gw.url, 'the URL') } }, 'Copy'))),
+    field('Gateway key', h('div', { class: 'keybox' }, keyCode,
+      h('button', { class: 'btn small', type: 'button', on: { click: (e) => { shown = !shown; drawKey(); e.target.textContent = shown ? 'Hide' : 'Show'; } } }, 'Show'),
+      h('button', { class: 'btn small', type: 'button', on: { click: () => copy(gw.key, 'the key') } }, 'Copy')),
+      gw.keyFromEnv ? 'Set in your Render environment variables.' : 'Anyone with this key can talk through your gateway. Keep it to yourself.'),
+    h('div', { class: 'actions' },
+      h('button', { class: 'btn small', type: 'button', on: { click: () => copy('Url = "' + gw.url + '",\nKey = "' + gw.key + '",', 'both config lines') } }, 'Copy both as script lines'),
+      gw.keyFromEnv ? null : twoStep('Make a new key', 'Sure? The script needs the new one', 'btn small', () => run(async () => { gw.key = (await api('POST', '/api/gateway/regenerate')).key; drawKey(); }, 'New key created. Update the script.'))),
+    h('h2', {}, 'Talk through her'),
+    h('form', { on: { submit: (e) => { e.preventDefault(); sendTo('say', sayIn); } } }, field('Say in Roblox chat', sayIn), h('button', { class: 'btn primary', type: 'submit' }, 'Say it')),
+    h('div', { style: 'height:16px' }),
+    h('form', { on: { submit: (e) => { e.preventDefault(); sendTo('order', orderIn); } } }, field('Give her an order', orderIn, 'Your Roblox script decides how to carry it out. Messages expire after 15 minutes if she is offline.'), h('button', { class: 'btn', type: 'submit' }, 'Send order')),
+    h('h2', {}, 'Recent in Roblox'), logBox);
+  drawLog();
+  const t = setInterval(async () => { if (document.hidden) return; try { await refresh(); drawStatus(); drawLog(); } catch (e) { /* ignore */ } }, 6000);
+  return { destroy: () => clearInterval(t) };
+}
+
+/* ---------- Brain ---------- */
+function viewBrain(root) {
+  const subs = [['persona', 'Persona'], ['models', 'Models'], ['discord', 'Discord'], ['backup', 'Backup']];
+  let sub = sessionStorageGet('brainSub') || 'persona';
+  sessionStorageSet('brainSub', '');
+  if (!subs.some((s) => s[0] === sub)) sub = 'persona';
+  const body = h('div', {});
+  const show = (id) => { sub = id; body.replaceChildren(); ({ persona: panelPersona, models: panelModels, discord: panelDiscord, backup: panelBackup })[id](body); };
+  put(root, seg(subs, sub, show), body);
+  show(sub);
+}
+
+function panelPersona(root) {
+  const c = S.state.config;
+  const name = h('input', { type: 'text', maxlength: 30, value: c.name });
+  const owner = h('input', { type: 'text', maxlength: 30, value: c.ownerName });
+  const persona = h('textarea', { rows: 12, maxlength: 3000 }, c.persona);
+  const count = h('small', {}, '');
+  const countUp = () => { count.textContent = persona.value.length + ' of 3000 characters'; };
+  persona.addEventListener('input', countUp); countUp();
+  const chaos = h('input', { type: 'range', min: 0, max: 100, step: 5, value: c.chaos });
+  const chaosOut = h('span', { class: 'muted num' }, '');
+  const word = (v) => v < 25 ? 'calm' : v < 70 ? 'playful' : 'chaotic';
+  const chaosUp = () => { chaosOut.textContent = chaos.value + ', ' + word(+chaos.value); };
+  chaos.addEventListener('input', chaosUp); chaosUp();
+  const tz = h('input', { type: 'text', value: c.timezone, placeholder: 'Asia/Manila' });
+  const rob = h('input', { type: 'text', value: c.ownerRobloxNames.join(', '), placeholder: 'your Roblox username' });
+  const moodSel = h('select', { 'aria-label': 'Mood' }, S.state.moods.map((m) => h('option', { value: m }, m)));
+  moodSel.value = S.state.mood.name;
+  put(root, 
+    h('div', { class: 'row2' }, field('Her name', name), field('Your name', owner)),
+    field('Persona', persona, 'This is who she is. Written in second person, like a character sheet.'),
+    count,
+    h('div', { style: 'height:14px' }),
+    field('Chaos', h('div', {}, chaos, chaosOut)),
+    h('div', { class: 'row2' }, field('Timezone', tz, 'She uses it for the time of day.'), field('Your Roblox username', rob, 'She recognises you as the owner there.')),
+    h('div', { class: 'actions' },
+      h('button', { class: 'btn primary', type: 'button', on: { click: () => run(async () => { await api('PUT', '/api/config', { name: name.value, ownerName: owner.value, persona: persona.value, chaos: +chaos.value, timezone: tz.value, ownerRobloxNames: rob.value }); await refresh(); }, 'Saved.') } }, 'Save'),
+      h('button', { class: 'btn', type: 'button', on: { click: () => { persona.value = c.defaultPersona; countUp(); toast('Default persona loaded. Save to keep it.'); } } }, 'Load the default persona')),
+    h('h2', {}, 'Mood'),
+    h('p', { class: 'small muted' }, 'Her mood moves on its own and fades back to playful after about 45 minutes. You can nudge it.'),
+    h('div', { class: 'actions' }, moodSel, h('button', { class: 'btn', type: 'button', on: { click: () => run(async () => { const r = await api('POST', '/api/mood', { mood: moodSel.value }); S.state.mood = r.mood; applyMood(r.mood.name); }, 'Mood set.') } }, 'Set mood')));
+  moodSel.style.width = 'auto';
+}
+
+function panelModels(root) {
+  const keysBox = h('div', {});
+  const modelsBox = h('div', {});
+  const keyIn = h('input', { type: 'text', autocomplete: 'off', spellcheck: 'false', placeholder: 'Paste a key: gsk_…, csk-… or sk-or-…', 'aria-label': 'API key' });
+  const labelIn = h('input', { type: 'text', maxlength: 30, placeholder: 'Label (optional)', 'aria-label': 'Key label' });
+  const customProv = h('select', { 'aria-label': 'Provider' });
+  const customId = h('input', { type: 'text', placeholder: 'Model name', 'aria-label': 'Model name' });
+  const draw = (ai) => {
+    S.state.ai = ai;
+    keysBox.replaceChildren(ai.keys.length ? h('ul', { class: 'list' }, ai.keys.map((k) => {
+      const lim = k.limited.length ? h('span', { class: 'pill warn' }, 'cooling down ' + k.limited[0].seconds + 's') : null;
+      return h('li', {},
+        h('div', { class: 'item-head' }, h('h3', {}, (ai.providers.find((p) => p.id === k.provider) || {}).label || k.provider, ' ', h('span', { class: 'code' }, k.masked), k.label ? h('span', { class: 'pill' }, k.label) : null),
+          h('span', {}, k.state === 'invalid' ? h('span', { class: 'pill bad' }, 'key rejected') : h('span', { class: 'pill ok' }, 'ready'), lim)),
+        k.lastError && (k.state === 'invalid' || lim) ? h('p', { class: 'small muted', style: 'margin:4px 0 0' }, k.lastError) : null,
+        h('div', { class: 'small muted' }, k.source === 'env' ? 'Set in Render. Change it there.' : 'Added here'),
+        k.source === 'dashboard' ? h('div', { class: 'item-actions' }, twoStep('Remove', 'Sure?', 'btn small', () => run(async () => { draw((await api('DELETE', '/api/keys/' + encodeURIComponent(k.id))).ai); }, 'Removed.'))) : null);
+    })) : h('div', { class: 'banner warn' }, h('p', {}, 'No keys yet. Without one she cannot think.')));
+    customProv.replaceChildren(...ai.providers.map((p) => h('option', { value: p.id }, p.label)));
+    modelsBox.replaceChildren(ai.models.length ? h('ul', { class: 'list' }, ai.models.map((m) => h('li', {},
+      h('div', { class: 'item-head' }, h('span', {}, h('span', { class: 'code' }, m.id), h('span', { class: 'pill' }, (ai.providers.find((p) => p.id === m.provider) || {}).label || m.provider), m.dead ? h('span', { class: 'pill bad' }, 'blocked, retiring') : null, m.custom ? h('span', { class: 'pill' }, 'yours') : null),
+        h('span', { class: 'actions', style: 'margin:0;flex-wrap:nowrap' },
+          h('button', { class: 'btn small', type: 'button', 'aria-pressed': String(m.enabled), on: { click: () => run(async () => { draw(await api('PUT', '/api/models/toggle', { provider: m.provider, id: m.id, enabled: !m.enabled })); }) } }, m.enabled ? 'On' : 'Off'),
+          m.custom ? twoStep('Remove', 'Sure?', 'btn small', () => run(async () => { draw(await api('DELETE', '/api/models/custom', { provider: m.provider, id: m.id })); })) : null))))) : h('p', { class: 'muted' }, 'Models appear here once a key is added.'));
+  };
+  put(root, 
+    h('p', { class: 'small muted' }, 'She rotates through every key and model you give her. If one hits a limit, the next one answers. Free keys: ',
+      h('a', { href: 'https://console.groq.com/keys', target: '_blank', rel: 'noopener' }, 'Groq'), ', ',
+      h('a', { href: 'https://cloud.cerebras.ai', target: '_blank', rel: 'noopener' }, 'Cerebras'), ', ',
+      h('a', { href: 'https://openrouter.ai/keys', target: '_blank', rel: 'noopener' }, 'OpenRouter'), '.'),
+    keysBox,
+    h('form', { style: 'margin-top:12px', on: { submit: (e) => { e.preventDefault(); run(async () => { const r = await api('POST', '/api/keys', { key: keyIn.value, label: labelIn.value }); keyIn.value = ''; labelIn.value = ''; draw(r.ai); }, 'Key added.'); } } },
+      field('Add a key', h('div', {}, keyIn, h('div', { style: 'height:8px' }), labelIn)), h('button', { class: 'btn primary', type: 'submit' }, 'Add key')),
+    h('h2', {}, 'Models'),
+    modelsBox,
+    h('div', { class: 'actions', style: 'margin-top:14px' }, h('button', { class: 'btn', type: 'button', on: { click: () => run(async () => { draw(await api('POST', '/api/models/refresh')); }, 'Model list refreshed.') } }, 'Refresh the list')),
+    h('p', { class: 'small muted', style: 'margin-top:8px' }, 'The list refreshes itself every few hours and drops models the provider retired.'),
+    h('form', { style: 'margin-top:14px', on: { submit: (e) => { e.preventDefault(); run(async () => { draw(await api('POST', '/api/models/custom', { provider: customProv.value, id: customId.value })); customId.value = ''; }, 'Model added.'); } } },
+      field('Add a model yourself', h('div', { class: 'row2' }, customProv, customId)), h('button', { class: 'btn', type: 'submit' }, 'Add model')));
+  draw(S.state.ai);
+  run(async () => draw(await api('GET', '/api/models')));
+}
+
+function panelDiscord(root) {
+  const c = S.state.config, d = c.discord, bot = S.state.discord;
+  const ids = h('input', { type: 'text', value: c.ownerDiscordIds.join(', '), placeholder: 'Your Discord user ID' });
+  const home = h('input', { type: 'text', value: d.homeChannels.join(', '), placeholder: 'Channel IDs, separated by commas' });
+  const passive = h('input', { type: 'checkbox' }); passive.checked = d.passive;
+  const chime = h('input', { type: 'range', min: 0, max: 50, step: 1, value: Math.round(d.chime * 100) });
+  const chimeOut = h('span', { class: 'muted num' }, '');
+  const chimeUp = () => { chimeOut.textContent = chime.value === '0' ? 'never' : chime.value + '% of the time'; };
+  chime.addEventListener('input', chimeUp); chimeUp();
+  const fw = h('input', { type: 'checkbox' }); fw.checked = d.freewill;
+  const fwMin = h('input', { type: 'number', min: 1, max: 1440, value: d.freewillMinutes });
+  const fwGap = h('input', { type: 'number', min: 1, max: 10080, value: d.freewillGapMinutes });
+  put(root, 
+    bot.online ? h('div', { class: 'banner' }, h('p', {}, 'Online as ' + bot.tag + ' in ' + bot.guilds + (bot.guilds === 1 ? ' server' : ' servers') + '.'))
+      : h('div', { class: 'banner ' + (bot.enabled ? 'bad' : 'warn') }, h('p', {}, bot.enabled ? 'The bot is not connected.' : 'No bot token yet.'), h('p', { class: 'small muted' }, bot.error || 'Add DISCORD_BOT_TOKEN in Render. The setup guide has the steps.')),
+    field('Your Discord user ID', ids, S.state.ownerDiscordIdsFromEnv ? 'One is also set in Render. In Discord, turn on Developer Mode, then right-click yourself and choose Copy User ID.' : 'Owner commands like z.say only work for you. In Discord, turn on Developer Mode, then right-click yourself and choose Copy User ID.'),
+    field('Home channels', home, 'Channels where she reads along. You can also type z.home in a channel to toggle it.'),
+    h('label', { class: 'check' }, passive, h('span', {}, 'Read home channels quietly', h('small', {}, 'She remembers what people say there without being pinged.'))),
+    field('Chiming in', h('div', {}, chime, chimeOut), 'How often she joins a home-channel conversation uninvited. She still decides whether she has something to say.'),
+    h('label', { class: 'check' }, fw, h('span', {}, 'Free will', h('small', {}, 'She sometimes starts talking in a home channel on her own.'))),
+    h('div', { class: 'row2' }, field('Think about it every (minutes)', fwMin), field('Never twice within (minutes)', fwGap)),
+    h('div', { class: 'actions' }, h('button', { class: 'btn primary', type: 'button', on: { click: () => run(async () => {
+      await api('PUT', '/api/config', { ownerDiscordIds: ids.value, discord: { homeChannels: home.value, passive: passive.checked, chime: +chime.value / 100, freewill: fw.checked, freewillMinutes: +fwMin.value, freewillGapMinutes: +fwGap.value } });
+      await refresh();
+    }, 'Saved.') } }, 'Save')));
+}
+
+function panelBackup(root) {
+  const stg = S.state.storage;
+  const file = h('input', { type: 'file', accept: 'application/json,.json', class: 'sr', id: 'importfile' });
+  file.addEventListener('change', async () => {
+    const f = file.files[0]; if (!f) return;
+    if (!confirm('Replace her memory, knowledge and settings with this backup?')) { file.value = ''; return; }
+    await run(async () => { const r = await api('POST', '/api/import', JSON.parse(await f.text())); await refresh(); toast('Imported. ' + r.counts.memory + ' memories.'); });
+    file.value = '';
+  });
+  const what = h('select', { 'aria-label': 'What to wipe' }, h('option', { value: 'memory' }, 'All memories'), h('option', { value: 'knowledge' }, 'All knowledge'), h('option', { value: 'people' }, 'All people notes'), h('option', { value: 'everything' }, 'Everything'));
+  const confirmIn = h('input', { type: 'text', placeholder: 'Type WIPE', autocomplete: 'off', 'aria-label': 'Type WIPE to confirm' });
+  put(root, 
+    stg.persistent
+      ? h('div', { class: 'banner' }, h('p', {}, 'Memory is saved to your Upstash database.'), h('p', { class: 'small muted' }, 'Last save ' + ago(stg.lastSave) + '.'))
+      : h('div', { class: 'banner bad' }, h('p', {}, 'Memory is only kept on this server\'s disk.'), h('p', { class: 'small' }, 'On Render\'s free plan that disk is wiped on every restart, so she would forget everything. Add the free Upstash database from the setup guide.')),
+    stg.lastError || stg.loadError ? h('div', { class: 'banner warn' }, h('p', {}, 'Storage trouble: ' + (stg.lastError || stg.loadError)), h('p', { class: 'small muted' }, 'She keeps working and retries on her own. Nothing is overwritten while storage is unreachable.')) : null,
+    h('h2', {}, 'Backup'),
+    h('p', { class: 'small muted' }, 'A backup holds memory, knowledge, people and settings. Your API keys and gateway key are never included.'),
+    h('div', { class: 'actions' },
+      h('button', { class: 'btn', type: 'button', on: { click: () => run(async () => {
+        const res = await fetch('/api/export', { credentials: 'same-origin' }); if (!res.ok) throw new Error('Export failed.');
+        const url = URL.createObjectURL(await res.blob());
+        const a = h('a', { href: url, download: 'zene-backup-' + new Date().toISOString().slice(0, 10) + '.json' }); document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+      }) } }, 'Download backup'),
+      h('label', { class: 'btn', for: 'importfile', style: 'display:inline-flex;align-items:center;cursor:pointer' }, 'Restore from a backup'), file),
+    h('h2', {}, 'Wipe'),
+    h('p', { class: 'small muted' }, 'This cannot be undone. Download a backup first.'),
+    h('div', { class: 'row2' }, what, confirmIn),
+    h('div', { class: 'actions' }, h('button', { class: 'btn danger', type: 'button', on: { click: () => run(async () => {
+      const r = await api('POST', '/api/danger/wipe', { what: what.value === 'memory' ? 'memory' : what.value, confirm: confirmIn.value });
+      confirmIn.value = ''; await refresh(); toast('Wiped. ' + r.counts.memory + ' memories left.');
+    }) } }, 'Wipe')),
+    h('div', { class: 'actions', style: 'margin-top:28px' }, h('button', { class: 'btn small', type: 'button', on: { click: async () => { await run(() => api('POST', '/auth/logout')); boot(); } } }, 'Sign out')));
+}
+
+/* ---------- boot ---------- */
+let tickTimer = null;
+async function boot() {
+  clearInterval(tickTimer);
+  const me = await fetch('/api/me', { credentials: 'same-origin' }).then((r) => r.json()).catch(() => null);
+  if (!me) { $root.replaceChildren(h('div', { class: 'login' }, h('p', {}, 'Cannot reach the server. Reload in a moment.'))); return; }
+  if (!me.authed) { S.me = null; showLogin(me.methods); return; }
+  S.me = me.user;
+  shell();
+  try { await refresh(); } catch (e) { toast(e.message, true); }
+  route();
+  tickTimer = setInterval(() => { if (!document.hidden) refresh().catch(() => {}); }, 20000);
+}
+window.addEventListener('hashchange', route);
+boot();
+})();
+</script>
+</body>
+</html>

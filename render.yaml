@@ -1,0 +1,29 @@
+# Optional: lets Render set the service up from this file ("New > Blueprint").
+# You can also create the web service by hand; README.md explains both.
+services:
+  - type: web
+    name: zene
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: GATEWAY_KEY
+        generateValue: true
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: OWNER_DISCORD_ID
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+      - key: DISCORD_BOT_TOKEN
+        sync: false
