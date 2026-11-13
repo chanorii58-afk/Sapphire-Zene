@@ -515,6 +515,20 @@ async function main() {
     if (!adminPassword && !oauthOn) console.warn('[zene] WARNING: set ADMIN_PASSWORD (or Discord OAuth) or you cannot log in to the dashboard.');
     if (!ai.hasKeys()) console.warn('[zene] No AI key yet. Set GROQ_API_KEY or add one in the dashboard.');
     bot.start();
+
+    // Render's free plan puts a site to sleep after ~15 quiet minutes, and a
+    // sleeping site means an offline Discord bot. Pinging our own public URL
+    // counts as traffic, so once she is awake she stays awake.
+    // Set KEEP_AWAKE=0 to turn this off.
+    if (process.env.KEEP_AWAKE !== '0' && process.env.RENDER_EXTERNAL_URL) {
+      const self = process.env.RENDER_EXTERNAL_URL.replace(/\/+$/, '') + '/healthz';
+      const ping = () => {
+        fetch(self, { signal: AbortSignal.timeout(15000) }).catch(() => {});
+      };
+      setTimeout(ping, 60 * 1000);
+      setInterval(ping, 10 * 60 * 1000).unref();
+      console.log('[zene] keep-awake ping on (every 10 min)');
+    }
   });
 
   let closing = false;
