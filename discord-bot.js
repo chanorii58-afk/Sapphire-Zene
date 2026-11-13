@@ -274,10 +274,17 @@ function updatePresence() {
   }
 }
 
+// Forgiving token read: accepts a few common variable names and cleans up
+// the usual copy-paste slips (spaces, quotes, a leading "Bot ").
+function readToken() {
+  const raw = process.env.DISCORD_BOT_TOKEN || process.env.DISCORD_TOKEN || process.env.BOT_TOKEN || '';
+  return String(raw).trim().replace(/^["']+|["']+$/g, '').replace(/^bot\s+/i, '').trim();
+}
+
 function start() {
-  const token = process.env.DISCORD_BOT_TOKEN;
+  const token = readToken();
   if (!token) {
-    state.error = 'DISCORD_BOT_TOKEN is not set.';
+    state.error = 'DISCORD_BOT_TOKEN is not set in Render (Environment tab).';
     return null;
   }
   state.enabled = true;
