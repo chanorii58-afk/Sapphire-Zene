@@ -12,6 +12,9 @@ const brain = require('./brain');
 const media = require('./media');
 const vision = require('./vision');
 const drawing = require('./draw');
+const reminders = require('./reminders');
+const voice = require('./voice');
+const ai = require('./ai');
 
 let Discord = null;
 try {
@@ -33,7 +36,17 @@ const drawHits = new Map(); // userId -> [timestamps]
 const reactTimes = []; // timestamps of recent reactions
 const reactAsks = []; // timestamps of recent "should I react?" model calls
 const ambientTimers = new Map();
+const thought = new Map(); // personKey -> ts of her last "should I DM them?" thought
+const voiceLeftAt = new Map(); // guildId -> ts she last left a voice channel
+const voiceAnnounced = new Map(); // channelId -> ts of her last "i am here" notice
+const subtitleTimes = new Map(); // channelId -> timestamps of recent subtitle lines
+const decisions = []; // the last few free-will choices, for the dashboard
 let lastFreewill = 0;
+
+function logDecision(who, where, what) {
+  decisions.push({ ts: Date.now(), who: String(who || '').slice(0, 40), where: String(where || '').slice(0, 60), what });
+  if (decisions.length > 25) decisions.shift();
+}
 
 const escapeRe = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -111,7 +124,7 @@ async function send(msg, text, extra) {
 }
 
 function placeOf(msg) {
-  if (!msg.guild) return 'a private DM';
+  if (!msg.guild) return 'a private DM with ' + ((msg.author && (msg.author.globalName || msg.author.username)) || 'someone');
   const ch = msg.channel && msg.channel.name ? ' #' + msg.channel.name : '';
   return `server "${msg.guild.name}"${ch}`;
 }
@@ -250,7 +263,7 @@ async function deliver(msg, r, o) {
 
 function invitePerms() {
   const P = Discord.PermissionFlagsBits;
-  return [P.ViewChannel, P.SendMessages, P.SendMessagesInThreads, P.ReadMessageHistory, P.AddReactions, P.EmbedLinks, P.AttachFiles, P.UseExternalEmojis, P.CreateGuildExpressions].filter((x) => x !== undefined);
+  return [P.ViewChannel, P.SendMessages, P.SendMessagesInThreads, P.ReadMessageHistory, P.AddReactions, P.EmbedLinks, P.AttachFiles, P.UseExternalEmojis, P.CreateGuildExpressions, P.Connect, P.Speak].filter((x) => x !== undefined);
 }
 
 function inviteUrl() {
@@ -278,8 +291,10 @@ const HELP = [
   'z.mood: how i feel right now',
   'z.status: what i am doing in Roblox',
   'owner only: z.say <text> (i say it in Roblox), z.order <text> (i get it as an order in Roblox), z.learn <title> | <text>, z.home (toggle this channel as a home channel), z.freewill on|off, z.forget (wipe my memory of this channel)',
-  'owner only: z.emoji list|add|meaning|remove|steal, z.image list|add|remove|send|vault, z.toggle reactions|vision|images|draw on|off, z.invite',
-  'owner only, and invisible: the /zene slash command (say, react, image, draw, do, roblox, mood, status).',
+  'z.remind |time|date (optional)|what to remind you|  (for example z.remind |3:30pm|call mom|  or  z.remind |8pm|nov 20|submit the form|  or  z.remind |in 2h|drink water|). z.reminders lists yours, z.unremind <number> removes one.',
+  'z.dmoff: i will not DM you on my own anymore. z.dmon: you are fine with that again.',
+  'owner only: z.emoji list|add|meaning|remove|steal, z.image list|add|remove|send|vault, z.toggle reactions|vision|images|draw|dms|voice|subtitles on|off, z.autonomy absolute|normal|off, z.join, z.leave, z.invite',
+  'owner only, and invisible: the /zene slash command (say, react, image, draw, do, dm, voice, roblox, mood, status).',
 ].join('\n');
 
 const ON = /^(on|true|yes|1)$/i;
@@ -424,7 +439,7 @@ async function imageCommand(msg, arg) {
 
 async function handleCommand(msg, cmd, arg, owner) {
   const ownerName = brain.cfg().ownerName;
-  const ownerOnly = ['say', 'order', 'learn', 'home', 'freewill', 'forget', 'emoji', 'image', 'toggle', 'invite'];
+  const ownerOnly = ['say', 'order', 'learn', 'home', 'freewill', 'forget', 'emoji', 'image', 'toggle', 'invite', 'autonomy', 'join', 'leave'];
   if (ownerOnly.includes(cmd) && !owner) return `that one is just for ${ownerName}.`;
   const channelId = msg.channelId || msg.channel.id;
   switch (cmd) {
@@ -475,10 +490,62 @@ async function handleCommand(msg, cmd, arg, owner) {
       return imageCommand(msg, arg);
     case 'toggle': {
       const [what, val] = arg.trim().split(/\s+/);
-      const key = { reactions: 'reactions', reaction: 'reactions', vision: 'vision', images: 'images', image: 'images', draw: 'draw', drawing: 'draw' }[String(what || '').toLowerCase()];
-      if (!key || !val) return 'use: z.toggle reactions|vision|images|draw on|off';
+      const key = { reactions: 'reactions', reaction: 'reactions', vision: 'vision', images: 'images', image: 'images', draw: 'draw', drawing: 'draw', dms: 'dms', dm: 'dms', voice: 'voice', subtitles: 'subtitles' }[String(what || '').toLowerCase()];
+      if (!key || !val) return 'use: z.toggle reactions|vision|images|draw|dms|voice|subtitles on|off';
       brain.updateConfig({ discord: { [key]: ON.test(val) } });
       return `${key} ${ON.test(val) ? 'on' : 'off'}.`;
+    }
+    case 'autonomy': {
+      const v = arg.trim().toLowerCase();
+      if (!['absolute', 'normal', 'off'].includes(v)) return 'use: z.autonomy absolute (i may ignore anyone, anytime) | normal (i always answer when spoken to) | off (i only ever answer, never start anything)';
+      brain.updateConfig({ discord: { autonomy: v } });
+      return { absolute: 'absolute free will. i answer when i feel like it, and i might leave you on read.', normal: 'normal. i answer whenever spoken to, and speak up on my own sometimes.', off: 'off. i only answer when spoken to and never start anything myself.' }[v];
+    }
+    case 'remind': {
+      let p;
+      try {
+        p = reminders.parse(arg, Date.now(), brain.cfg().timezone);
+      } catch (e) {
+        return e.message;
+      }
+      try {
+        const r = reminders.add({ userId: msg.author.id, name: (msg.member && msg.member.displayName) || msg.author.username, text: p.text, due: p.due, channelId });
+        const tz = brain.cfg().timezone;
+        return `okay. reminder #${r.id} is set for ${reminders.fmt(r.due, tz)} (${tz}): ${r.text}\ni will DM you` + (voice.available() ? ', and ring you in voice first if you are in a voice channel.' : '.');
+      } catch (e) {
+        return e.message;
+      }
+    }
+    case 'reminders': {
+      const mine = reminders.listFor(msg.author.id);
+      const tz = brain.cfg().timezone;
+      return mine.length ? mine.map((r) => `#${r.id} ${reminders.fmt(r.due, tz)}: ${r.text}`).join('\n') : 'you have no reminders. set one with z.remind |time|what|';
+    }
+    case 'unremind': {
+      const id = parseInt(arg, 10);
+      return id && reminders.remove(id, msg.author.id) ? `reminder #${id} removed.` : 'that is not one of your reminders. z.reminders shows them.';
+    }
+    case 'dmoff':
+    case 'dmon': {
+      const key = 'discord:' + msg.author.id;
+      brain.touchPerson({ key, name: (msg.member && msg.member.displayName) || msg.author.username }, 'discord');
+      brain.setPersonFlag(key, 'noDm', cmd === 'dmoff');
+      return cmd === 'dmoff' ? 'okay. i will not DM you on my own. you can still talk to me, and reminders you set still come to you.' : 'okay. i might DM you sometimes. z.dmoff stops that.';
+    }
+    case 'join': {
+      const ch = voiceChannelOf(msg.guild, msg.author.id);
+      if (!msg.guild) return 'use that in a server.';
+      if (!ch) return 'join a voice channel first, then tell me again.';
+      try {
+        await joinVoice(ch, 'asked');
+        return null;
+      } catch (e) {
+        return 'i could not join: ' + clip(e.message, 120);
+      }
+    }
+    case 'leave': {
+      if (!msg.guild) return 'use that in a server.';
+      return leaveVoice(msg.guild, 'asked') ? 'bye.' : 'i am not in a voice channel here.';
     }
     case 'invite': {
       const u = inviteUrl();
@@ -570,11 +637,16 @@ async function handleMessage(msg) {
   const nameHit = new RegExp('\\b' + escapeRe(c.name) + '\\b', 'i').test(clean);
   const addressed = isDM || mentioned || repliedToMe || nameHit;
 
+  const place = placeOf(msg);
+  const dmKey = isDM ? speaker.key : '';
+
   if (!addressed) {
     if (home && c.discord.passive) {
-      brain.note({ surface: 'discord', scope, key: speaker.key, name, text: clean });
-      scheduleAmbient(msg, channelId, scope);
-      maybeReactAmbient(msg, name, clean, owner);
+      brain.note({ surface: 'discord', scope, key: speaker.key, name, text: clean, place });
+      if (c.discord.autonomy !== 'off') {
+        scheduleAmbient(msg, channelId, scope);
+        maybeReactAmbient(msg, name, clean, owner);
+      }
     }
     return;
   }
@@ -600,7 +672,9 @@ async function handleMessage(msg) {
       if (lookable.length) seen = (await vision.look(items, { owner })).seen;
       else seen = items.map((i) => i.note).join(' ');
     }
-    const r = await brain.respond({ surface: 'discord', scope, speaker, text: clean, seen, canReact: true, context: { place: placeOf(msg) } });
+    const r = await brain.respond({ surface: 'discord', scope, speaker, text: clean, seen, canReact: true, context: { place, dmKey } });
+    if (r.silent && !(r.actions && r.actions.length)) logDecision(name, isDM ? 'DM' : '#' + ((msg.channel && msg.channel.name) || '?'), 'left it on read');
+    else if (r.silent) logDecision(name, isDM ? 'DM' : '#' + ((msg.channel && msg.channel.name) || '?'), 'reacted only');
     await deliver(msg, r);
   } catch (e) {
     const now = Date.now();
@@ -625,8 +699,12 @@ function scheduleAmbient(msg, channelId, scope) {
       ambientTimers.delete(channelId);
       try {
         if (Date.now() - (lastSent.get(channelId) || 0) < 45000) return;
-        if (Math.random() > brain.cfg().discord.chime) return;
+        const d = brain.cfg().discord;
+        // absolute free will: her mood shifts how chatty she feels (sleepy: rarely, excited: often)
+        const odds = d.autonomy === 'absolute' ? Math.min(0.9, d.chime * brain.moodFactor() * 1.5) : d.chime;
+        if (Math.random() > odds) return;
         const r = await brain.respond({ surface: 'discord', scope, kind: 'react', mode: 'ambient', speaker: {}, canReact: true, context: { place: placeOf(msg) } });
+        if (!r.silent && r.text) logDecision('(room)', msg.channel && msg.channel.name ? '#' + msg.channel.name : '', 'spoke up on her own');
         await deliver(msg, r, { plain: true });
       } catch (e) {
         /* stay quiet on failures */
@@ -637,7 +715,7 @@ function scheduleAmbient(msg, channelId, scope) {
 
 async function freewillTick() {
   const d = brain.cfg().discord;
-  if (!client || !d.freewill || !d.homeChannels.length) return;
+  if (!client || !d.freewill || d.autonomy === 'off' || !d.homeChannels.length) return;
   const now = Date.now();
   if (now - lastFreewill < d.freewillMinutes * 60000) return;
   lastFreewill = now;
@@ -656,6 +734,247 @@ async function freewillTick() {
       /* try again next tick */
     }
     return; // at most one channel per tick
+  }
+}
+
+/* ---------- voice channels ---------- */
+
+function voiceChannelOf(guild, userId) {
+  if (!guild || !guild.voiceStates || !guild.voiceStates.cache) return null;
+  const vs = guild.voiceStates.cache.get(userId);
+  return vs && vs.channel ? vs.channel : null;
+}
+
+function findVoiceOfUser(userId) {
+  if (!client) return null;
+  for (const g of client.guilds.cache.values()) {
+    const ch = voiceChannelOf(g, userId);
+    if (ch) return ch;
+  }
+  return null;
+}
+
+const humansIn = (ch) => (ch && ch.members ? Array.from(ch.members.values()).filter((m) => !m.user.bot) : []);
+
+// A hint for the speech model: the names it is likely to hear.
+function voicePrompt(ch) {
+  return [brain.cfg().name, 'Zene'].concat(humansIn(ch).map((m) => m.displayName)).join(', ');
+}
+
+async function joinVoice(ch, why) {
+  const d = brain.cfg().discord;
+  if (!voice.available()) throw new Error(voice.reason());
+  const listen = voice.canHear();
+  const rec = await voice.join(ch, { listen, selfId: botId, onText: (t) => onTranscript(ch, t).catch(() => {}), prompt: () => voicePrompt(ch) });
+  voiceLeftAt.delete(ch.guild.id);
+  logDecision('(me)', ch.name, 'joined voice (' + why + ')');
+  const now = Date.now();
+  if (now - (voiceAnnounced.get(ch.id) || 0) > 3 * 3600e3) {
+    voiceAnnounced.set(ch.id, now);
+    // she is listening, so she says so
+    const note = listen
+      ? 'i joined to hang out. i can hear this channel' + (d.subtitles ? ' and i write what i hear here as subtitles' : '') + '. say z.leave and i will go.'
+      : 'i joined to hang out, but i cannot hear anything (no speech key yet), so i am just here.';
+    if (typeof ch.send === 'function') ch.send({ content: '👂 ' + note, allowedMentions: { parse: [] } }).catch(() => {});
+  }
+  return rec;
+}
+
+function leaveVoice(guild, why) {
+  const ok = voice.leave(guild.id);
+  if (ok) {
+    voiceLeftAt.set(guild.id, Date.now());
+    logDecision('(me)', guild.name, 'left voice (' + why + ')');
+  }
+  return ok;
+}
+
+// What someone said out loud, as heard by Whisper.
+async function onTranscript(ch, t) {
+  const c = brain.cfg();
+  const member = ch.guild && ch.guild.members && ch.guild.members.cache ? ch.guild.members.cache.get(t.userId) : null;
+  const name = (member && member.displayName) || 'someone';
+  const owner = brain.isOwnerDiscord(t.userId);
+  if (c.discord.subtitles && typeof ch.send === 'function') {
+    const now = Date.now();
+    const a = (subtitleTimes.get(ch.id) || []).filter((x) => now - x < 60000);
+    if (a.length < 20) {
+      a.push(now);
+      subtitleTimes.set(ch.id, a);
+      ch.send({ content: `🎙️ **${clip(name, 32)}:** ${t.text.replace(/@/g, '@​')}`.slice(0, 1900), allowedMentions: { parse: [] } }).catch(() => {});
+    }
+  }
+  const scope = 'discord:' + ch.id;
+  const place = `voice channel "${ch.name}" in "${ch.guild.name}"`;
+  const speaker = { key: 'discord:' + t.userId, name, owner };
+  const pseudo = { channel: ch, channelId: ch.id, guild: ch.guild };
+  const addressed = new RegExp('\\b' + escapeRe(c.name) + '\\b', 'i').test(t.text) || /\bzene\b/i.test(t.text);
+  if (addressed) {
+    const r = await brain.respond({ surface: 'discord', scope, speaker, text: t.text, canReact: false, context: { place } });
+    logDecision(name, ch.name, r.silent ? 'heard her name, stayed quiet' : 'answered out loud-ish (text)');
+    await deliver(pseudo, r, { plain: true, noReact: true });
+    return;
+  }
+  brain.note({ surface: 'discord', scope, key: speaker.key, name, text: t.text, place });
+  if (c.discord.autonomy !== 'off') scheduleAmbient(pseudo, ch.id, scope);
+}
+
+// Every minute: should she wander into a voice channel, or slip out of the one she is in?
+async function voiceTick() {
+  const d = brain.cfg().discord;
+  if (!client || !d.voice || d.autonomy === 'off' || !voice.available() || !voice.canHear()) return;
+  const now = Date.now();
+  for (const guild of client.guilds.cache.values()) {
+    try {
+      const cur = voice.current(guild.id);
+      if (cur) {
+        const ch = guild.channels.cache.get(cur.channelId);
+        const humans = humansIn(ch).length;
+        if (!humans) {
+          cur.emptySince = cur.emptySince || now;
+          if (now - cur.emptySince > 20000) leaveVoice(guild, 'nobody left');
+          continue;
+        }
+        cur.emptySince = 0;
+        const minutes = (now - cur.joinedAt) / 60000;
+        const quiet = (now - cur.lastHeard) / 60000;
+        const m = brain.getMood().name;
+        let p = 0;
+        if (minutes > 20) p += 0.03;
+        if (quiet > 8) p += 0.12;
+        if (['sleepy', 'annoyed', 'sad'].includes(m)) p += 0.05;
+        if (Math.random() < p) leaveVoice(guild, quiet > 8 ? 'bored' : 'felt like it');
+        continue;
+      }
+      if (now - (voiceLeftAt.get(guild.id) || 0) < 20 * 60000) continue;
+      let best = null;
+      for (const ch of guild.channels.cache.values()) {
+        if (ch.type !== 2 || !ch.joinable || ch.id === guild.afkChannelId) continue; // 2 = voice channel
+        const people = humansIn(ch);
+        if (!people.length) continue;
+        const ownerHere = people.some((x) => brain.isOwnerDiscord(x.id));
+        const score = people.length + (ownerHere ? 5 : 0);
+        if (!best || score > best.score) best = { ch, score, ownerHere, n: people.length };
+      }
+      if (!best) continue;
+      const p = (0.03 + (best.ownerHere ? 0.1 : 0) + (best.n >= 2 ? 0.03 : 0)) * brain.moodFactor();
+      if (Math.random() < p) await joinVoice(best.ch, best.ownerHere ? 'saw the owner there' : 'got curious');
+    } catch (e) {
+      /* try again next minute */
+    }
+  }
+}
+
+/* ---------- reminders ---------- */
+
+const timeout = (ms) => new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms));
+
+// "calls" the person (a few seconds in their voice channel if they are in one), then DMs the reminder.
+async function fireReminder(r) {
+  const user = await client.users.fetch(r.userId);
+  let called = false;
+  const vch = findVoiceOfUser(r.userId);
+  if (vch && voice.available() && vch.joinable) {
+    try {
+      await voice.ring(vch, 10000, { selfId: botId });
+      called = true;
+    } catch (e) {
+      /* no call this time; the message still goes out */
+    }
+  }
+  const late = Date.now() - r.due > 5 * 60000;
+  let scope = 'discord:remind';
+  try {
+    scope = 'discord:' + (await user.createDM()).id;
+  } catch (e) {
+    /* send() below will report the real problem */
+  }
+  let intro = '';
+  try {
+    const rr = await Promise.race([
+      brain.respond({
+        surface: 'discord',
+        scope,
+        kind: 'direct',
+        from: 'the reminder system',
+        text: `Remind ${r.name} about this, in one short line in your own voice, as a private DM to them. What they asked to be reminded of: "${r.text}". ${called ? 'You just rang them in voice chat for a few seconds. ' : ''}${late ? 'You are a bit late (you were asleep), so say sorry briefly. ' : ''}Do not repeat the reminder wording; the exact reminder is shown right under your line.`,
+        speaker: { key: 'discord:' + r.userId, name: r.name },
+        canReact: false,
+        context: { place: 'a private DM with ' + r.name, dmKey: 'discord:' + r.userId },
+      }),
+      timeout(20000),
+    ]);
+    if (rr && rr.text) intro = rr.text;
+  } catch (e) {
+    /* her own words are optional */
+  }
+  if (!intro) intro = late ? 'sorry, i was asleep. reminder time!' : 'hey! reminder time.';
+  const body = `${intro}\n⏰ **Reminder:** ${r.text}`.slice(0, 1900);
+  try {
+    await user.send({ content: body, allowedMentions: { parse: [] } });
+  } catch (e) {
+    // DMs are closed: say it where it was asked for, if she can
+    const ch = r.channelId ? await client.channels.fetch(r.channelId).catch(() => null) : null;
+    if (!ch || typeof ch.send !== 'function') throw e;
+    await ch.send({ content: `<@${r.userId}> ⏰ **Reminder:** ${r.text}\n(i could not DM you, your DMs are closed)`, allowedMentions: { users: [r.userId] } });
+  }
+  brain.remember({ surface: 'discord', scope, key: 'zene', name: brain.cfg().name, role: 'z', text: `(reminder sent) ${r.text}`, place: 'a private DM with ' + r.name, dm: 'discord:' + r.userId });
+}
+
+let reminding = false;
+async function remindTick() {
+  if (!client || reminding) return;
+  reminding = true;
+  try {
+    for (const r of reminders.due(Date.now())) {
+      reminders.setFiring(r, true);
+      try {
+        await fireReminder(r);
+        reminders.remove(r.id);
+      } catch (e) {
+        reminders.fail(r, 60000);
+      }
+    }
+  } finally {
+    reminding = false;
+  }
+}
+
+/* ---------- DMs she starts herself ---------- */
+
+async function dmTick() {
+  if (!client || !state.online) return;
+  const now = Date.now();
+  const cands = brain.dmCandidates(now).filter((c) => now - (thought.get(c.key) || 0) > 2 * 3600e3);
+  const pick = cands.find((c) => Math.random() < c.score);
+  if (!pick) return;
+  thought.set(pick.key, now);
+  try {
+    const user = await client.users.fetch(pick.id);
+    if (!user || user.bot) return;
+    const dm = await user.createDM();
+    const r = await brain.respond({
+      surface: 'discord',
+      scope: 'discord:' + dm.id,
+      kind: 'outreach',
+      speaker: { key: pick.key, name: pick.name, owner: brain.isOwnerDiscord(pick.id) },
+      canReact: false,
+      context: { place: 'a private DM with ' + pick.name, dmKey: pick.key },
+    });
+    if (r.silent || !r.text) {
+      logDecision(pick.name, 'DM', 'thought about messaging, decided not to');
+      return;
+    }
+    try {
+      for (const part of split(media.resolveText(r.text))) await dm.send({ content: part, allowedMentions: { parse: [] } });
+      brain.logDm(pick.key, true);
+      logDecision(pick.name, 'DM', 'messaged first');
+    } catch (e) {
+      brain.logDm(pick.key, false); // closed DMs or blocked: leave them alone for a week
+      logDecision(pick.name, 'DM', 'could not DM (closed or blocked)');
+    }
+  } catch (e) {
+    /* next time */
   }
 }
 
@@ -710,6 +1029,19 @@ function slashDefinition() {
       .setDescription('Give Zene a private instruction; she does it in her own words')
       .addStringOption((o) => o.setName('instruction').setDescription('For example: ask chat what they are playing').setRequired(true).setMaxLength(500))
       .addChannelOption(chan)
+  );
+  b.addSubcommand((s) =>
+    s
+      .setName('dm')
+      .setDescription('Make Zene DM someone (it comes from her, and she remembers it)')
+      .addUserOption((o) => o.setName('user').setDescription('Who to message').setRequired(true))
+      .addStringOption((o) => o.setName('text').setDescription('Exactly what she says').setRequired(true).setMaxLength(1900))
+  );
+  b.addSubcommand((s) =>
+    s
+      .setName('voice')
+      .setDescription('Make Zene join or leave a voice channel')
+      .addStringOption((o) => o.setName('action').setDescription('join or leave').setRequired(true).addChoices({ name: 'join (the one you are in)', value: 'join' }, { name: 'leave', value: 'leave' }))
   );
   b.addSubcommand((s) =>
     s
@@ -840,6 +1172,26 @@ async function runSlash(i) {
       await deliver({ channel: ch, channelId: ch.id, guild: ch.guild }, r, { plain: true, noReact: true });
       return 'done. she said: ' + clip(r.text || '(a picture only)', 300);
     }
+    case 'dm': {
+      const target = i.options.getUser('user', true);
+      if (target.bot) return 'that is a bot.';
+      const text = i.options.getString('text', true);
+      const dm = await target.createDM();
+      await dm.send({ content: media.resolveText(text).slice(0, 2000), allowedMentions: { parse: [] } });
+      const key = 'discord:' + target.id;
+      brain.touchPerson({ key, name: target.globalName || target.username }, 'discord');
+      brain.remember({ surface: 'discord', scope: 'discord:' + dm.id, key: 'zene', name: c.name, role: 'z', text, place: 'a private DM with ' + (target.globalName || target.username), dm: key });
+      return 'sent to ' + (target.globalName || target.username) + '.';
+    }
+    case 'voice': {
+      const guild = i.guild;
+      if (!guild) return 'use that in a server.';
+      if (i.options.getString('action', true) === 'leave') return leaveVoice(guild, 'told to') ? 'she left.' : 'she is not in a voice channel here.';
+      const ch = voiceChannelOf(guild, i.user.id);
+      if (!ch) return 'join a voice channel first.';
+      await joinVoice(ch, 'told to');
+      return 'she joined ' + ch.name + '.';
+    }
     case 'roblox': {
       const mode = i.options.getString('mode') === 'order' ? 'order' : 'say';
       brain.pushOutbox(mode, i.options.getString('text', true), 'discord');
@@ -861,6 +1213,9 @@ async function runSlash(i) {
         `pictures: ${mc.images} (vault ${mc.vault ? 'set' : 'not set'})`,
         `vision: ${d.vision ? (v.available ? 'on, model ready' : 'on, but no picture model is available') : 'off'}; video: ${vision.canWatchVideo() ? 'frames via ffmpeg' : 'first-frame only'}`,
         `reactions: ${d.reactions ? 'on (' + Math.round(brain.reactChance(false) * 100) + '% right now)' : 'off'}; images: ${d.images ? 'on' : 'off'}; draw: ${d.draw && drawing.enabled() ? 'on' : 'off'}`,
+        `free will: ${d.autonomy}; DMs: ${d.dms ? 'on (' + brain.dmCandidates(Date.now()).length + ' people she could message now)' : 'off'}`,
+        `voice: ${!d.voice ? 'off' : !voice.available() ? 'not installed' : !voice.canHear() ? 'on, but no Groq key to hear with' : 'on'}; subtitles: ${d.subtitles ? 'on' : 'off'}; in a voice channel: ${voice.all().map((x) => x.name).join(', ') || 'no'}`,
+        `reminders waiting: ${reminders.listAll().length}`,
       ].join('\n');
     }
     default:
@@ -938,7 +1293,7 @@ function start() {
     return null;
   }
   const { Client, GatewayIntentBits, Partials, Events } = Discord;
-  const intents = [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.DirectMessages];
+  const intents = [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.DirectMessages, GatewayIntentBits.GuildVoiceStates];
   const expr = GatewayIntentBits.GuildExpressions || GatewayIntentBits.GuildEmojisAndStickers;
   if (expr) intents.push(expr); // lets her notice emojis being added or removed in her servers
   client = new Client({ intents, partials: [Partials.Channel, Partials.Message] });
@@ -953,6 +1308,10 @@ function start() {
     updatePresence();
     setInterval(updatePresence, 60000);
     setInterval(() => freewillTick().catch(() => {}), 60000);
+    setInterval(() => remindTick().catch(() => {}), 15000);
+    setInterval(() => dmTick().catch(() => {}), 5 * 60000);
+    setInterval(() => voiceTick().catch(() => {}), 60000);
+    remindTick().catch(() => {}); // anything that came due while she was asleep
     registerSlash().catch((e) => {
       state.slash.error = (e && e.message) || 'could not register /zene';
     });
@@ -987,6 +1346,9 @@ function status() {
     homeChannels: brain.cfg().discord.homeChannels.length,
     videoFrames: vision.canWatchVideo(),
     drawing: drawing.enabled(),
+    voice: { available: voice.available(), reason: voice.reason(), canHear: voice.canHear(), inChannels: voice.all().map((x) => ({ guild: x.guildId, channel: x.name })) },
+    reminders: reminders.listAll().length,
+    decisions: decisions.slice().reverse(),
   });
 }
 
@@ -1006,5 +1368,26 @@ module.exports = {
   handleInteraction,
   slashDefinition: () => slashDefinition().toJSON(),
   _setBotId: (id) => (botId = id),
-  _setClient: (c) => (client = c),
+  _setClient: (c) => {
+    client = c;
+    state.online = !!c;
+  },
+  // exposed for tests
+  _fireReminder: fireReminder,
+  _remindTick: remindTick,
+  _dmTick: dmTick,
+  _voiceTick: voiceTick,
+  _onTranscript: onTranscript,
+  _joinVoice: joinVoice,
+  _reset: () => {
+    thought.clear();
+    lastVisual.clear();
+    lastReactAsk.clear();
+    drawHits.clear();
+    userHits.clear();
+    lastSent.clear();
+    reactTimes.length = 0;
+    reactAsks.length = 0;
+    decisions.length = 0;
+  },
 };
